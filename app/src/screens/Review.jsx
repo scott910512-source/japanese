@@ -9,8 +9,11 @@ import {
 import {
   MCQuiz,
   QuizResult,
+  RepeatQuiz,
   buildBasicGrammarItems,
   buildBasicWordItems,
+  buildDailyQuizItems,
+  buildDailyStudy,
   buildGrammarItems,
   buildKanjiItems,
   buildNaturalItems,
@@ -24,16 +27,17 @@ const MODE_LABELS = {
   natural: '🎯 자연스러움',
   bword: '📚 기본 단어',
   bgrammar: '📘 기본 문법',
+  daily: '📅 데일리 학습',
 }
 
 export default function Review({ data, setData, go }) {
   const [session, setSession] = useState(null) // {mode, items, idx, results}
   const [pending, setPending] = useState(() => loadActiveQuiz()) // 중단된 퀴즈
 
+  // 퀴즈가 끝나면 홈이 아니라 복습 목록으로 돌아온다 (다음 테스트 바로 선택)
   const exit = () => {
     setSession(null)
     setPending(loadActiveQuiz())
-    go('home')
   }
 
   // 풀고 나면 SRS가 다음 복습일을 잡으므로, 오늘 몫(due)만 출제한다.
@@ -51,6 +55,12 @@ export default function Review({ data, setData, go }) {
   }
 
   const start = (mode) => {
+    if (mode === 'daily') {
+      // 데일리 학습은 학습(설명) 단계부터 시작 — 테스트 시작 시점에 저장된다
+      setPending(null)
+      setSession({ mode: 'daily' })
+      return
+    }
     const state = { mode, items: dueOf(mode), idx: 0, results: [] }
     saveActiveQuiz(state)
     setPending(null)
@@ -64,6 +74,9 @@ export default function Review({ data, setData, go }) {
 
   if (session?.mode === 'flash') {
     return <Flashcards data={data} setData={setData} initial={session} done={exit} />
+  }
+  if (session?.mode === 'daily') {
+    return <DailySession data={data} setData={setData} initial={session} done={exit} />
   }
   if (session) {
     return <QuizSession data={data} setData={setData} initial={session} done={exit} />
@@ -88,11 +101,14 @@ export default function Review({ data, setData, go }) {
         </div>
       )}
 
-      {pending && pending.results && pending.idx < pending.items.length && (
+      {pending && pending.results && pending.items.length > (pending.mode === 'daily' ? 0 : pending.idx) && (
         <div className="card resume-card">
           <div className="card-title">진행 중이던 복습이 있어요</div>
           <div className="resume-info">
-            {MODE_LABELS[pending.mode] || pending.mode} · {pending.idx} / {pending.items.length} 완료
+            {MODE_LABELS[pending.mode] || pending.mode} ·{' '}
+            {pending.mode === 'daily'
+              ? `남은 ${pending.items.length}문제`
+              : `${pending.idx} / ${pending.items.length} 완료`}
           </div>
           <div className="answer-row">
             <button className="btn-primary" onClick={resume}>이어서 하기</button>
@@ -109,6 +125,15 @@ export default function Review({ data, setData, go }) {
         </div>
       )}
 
+      <button className="btn-primary" onClick={() => start('daily')}>
+        📅 데일리 학습 시작
+      </button>
+      <p className="desc">
+        오늘의 단어·문법을 먼저 배우고, 최소 20문항 테스트로 확인합니다. 틀린 문제는 맞힐 때까지
+        다시 나와요.
+      </p>
+
+      <h2 className="section-title">개별 복습</h2>
       <p className="desc">모드를 선택하세요. 답을 고를 때마다 자동 저장됩니다.</p>
       <button className="mode-btn" onClick={() => start('flash')} disabled={due === 0}>
         🃏 단어 플래시카드 <span className="badge">{due}장</span>
@@ -138,6 +163,154 @@ export default function Review({ data, setData, go }) {
         📘 기본 문법 테스트 <span className="badge">{bgrammarCount}문항</span>
       </button>
     </div>
+  )
+}
+
+import { FORM_LABELS } from '../basics.js'
+
+// 데일리 학습: ① 오늘의 단어·문법 학습(설명) → ② 최소 20문항 테스트(오답 반복)
+function DailySession({ data, setData, initial, done }) {
+  const [phase, setPhase] = useState(initial.items ? 'quiz' : 'study')
+  const [quizState, setQuizState] = useState(
+    initial.items
+      ? { queue: initial.items, results: initial.results || [], total: initial.total || initial.items.length }
+      : null,
+  )
+  const [finalResults, setFinalResults] = useState(null)
+
+  if (finalResults) return <QuizResult results={finalResults} onDone={done} />
+
+  if (phase === 'study') {
+    const study = buildDailyStudy(data)
+    const empty = study.words.length + study.verbs.length + study.grammar.length === 0
+    const startQuiz = () => {
+      const items = buildDailyQuizItems(data)
+      if (items.length === 0) {
+        done()
+        return
+      }
+      saveActiveQuiz({ mode: 'daily', items, idx: 0, results: [], total: items.length })
+      setQuizState({ queue: items, results: [], total: items.length })
+      setPhase('quiz')
+    }
+    return (
+      <div className="screen">
+        <h1 className="page-title">📅 오늘의 학습</h1>
+        {empty ? (
+          <p className="desc">
+            오늘 새로 배울 항목은 이미 다 봤어요. 테스트는 배운 항목 중 익숙도가 낮은 것들로
+            구성됩니다.
+          </p>
+        ) : (
+          <p className="desc">먼저 오늘의 단어와 문법을 눈에 익힌 뒤 테스트를 시작하세요.</p>
+        )}
+
+        {study.words.length > 0 && (
+          <>
+            <h2 className="section-title">오늘의 단어 ({study.words.length})</h2>
+            {study.words.map((w) => (
+              <div className="card study-word" key={w.jp}>
+                <span className="study-jp">
+                  {w.jp}
+                  {w.reading && w.reading !== w.jp ? <span className="study-reading">（{w.reading}）</span> : null}
+                </span>
+                <span className="study-ko">{w.ko}</span>
+              </div>
+            ))}
+          </>
+        )}
+
+        {study.verbs.length > 0 && (
+          <>
+            <h2 className="section-title">오늘의 동사 활용 ({study.verbs.length})</h2>
+            {study.verbs.map((v) => (
+              <div className="card" key={v.base}>
+                <div className="study-verb-head">
+                  <span className="study-jp">
+                    {v.base}
+                    {v.reading !== v.base ? <span className="study-reading">（{v.reading}）</span> : null}
+                  </span>
+                  <span className="study-ko">{v.ko}</span>
+                </div>
+                <table className="study-forms">
+                  <tbody>
+                    {Object.entries(v.forms).map(([fk, f]) => (
+                      <tr key={fk}>
+                        <td className="form-label">{FORM_LABELS[fk]}</td>
+                        <td className="form-value">
+                          {f.f}
+                          {f.r !== f.f ? <span className="study-reading">（{f.r}）</span> : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </>
+        )}
+
+        {study.grammar.length > 0 && (
+          <>
+            <h2 className="section-title">노트에서 배운 문법 복습 ({study.grammar.length})</h2>
+            {study.grammar.map((g) => (
+              <div className="card" key={g.pattern}>
+                <div className="study-verb-head">
+                  <span className="study-jp">{g.pattern}</span>
+                  <span className="study-ko">{g.meaning}</span>
+                </div>
+                {g.example && <p className="desc">{g.example}</p>}
+              </div>
+            ))}
+          </>
+        )}
+
+        <button className="btn-primary" onClick={startQuiz}>
+          테스트 시작 (최소 20문항)
+        </button>
+        <button className="btn-secondary" onClick={done}>
+          나가기
+        </button>
+      </div>
+    )
+  }
+
+  const finish = (results) => {
+    const next = commitQuizResult(data, { mode: 'daily', results })
+    // 항목별 SRS 반영 (첫 시도 기준, 같은 항목 문항이 하나라도 틀리면 오답)
+    const byRef = {}
+    for (const r of results) {
+      if (!r.ref || !r.rt) continue
+      const k = `${r.rt}|${r.ref}`
+      byRef[k] = (byRef[k] ?? true) && r.correct
+    }
+    const find = {
+      bw: (ref) => next.basicWords.find((x) => x.jp === ref),
+      bv: (ref) => next.basicVerbs.find((x) => x.base === ref),
+      g: (ref) => next.grammar.find((x) => x.pattern === ref),
+      w: (ref) => next.words.find((x) => x.jp === ref),
+    }
+    for (const [k, ok] of Object.entries(byRef)) {
+      const [rt, ref] = [k.slice(0, k.indexOf('|')), k.slice(k.indexOf('|') + 1)]
+      const t = find[rt]?.(ref)
+      if (t) t.srs = applyAnswer(t.srs || newSrs(), ok)
+    }
+    setData(next)
+    clearActiveQuiz()
+    setFinalResults(results)
+  }
+
+  return (
+    <RepeatQuiz
+      title="📅 데일리 학습"
+      initialQueue={quizState.queue}
+      initialResults={quizState.results}
+      total={quizState.total}
+      onProgress={(q, r) =>
+        saveActiveQuiz({ mode: 'daily', items: q, idx: r.length, results: r, total: quizState.total })
+      }
+      onFinish={finish}
+    />
   )
 }
 

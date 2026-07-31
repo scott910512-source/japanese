@@ -1,7 +1,7 @@
 import { isDue, newSrs } from '../srs.js'
 import { latestSession, streak } from '../storage.js'
 
-export const APP_VERSION = 'v0.5.0'
+export const APP_VERSION = 'v0.6.0'
 
 export default function Home({ data, go }) {
   const due =
