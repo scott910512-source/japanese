@@ -1,14 +1,16 @@
 import { isDue, newSrs } from '../srs.js'
 import { latestSession, streak } from '../storage.js'
 
-export const APP_VERSION = 'v0.4.0'
+export const APP_VERSION = 'v0.5.0'
 
 export default function Home({ data, go }) {
   const due =
     data.words.filter((w) => isDue(w.srs)).length +
     data.grammar.filter((g) => isDue(g.srs || newSrs())).length +
     data.kanji.filter((k) => isDue(k.srs || newSrs())).length +
-    data.naturalPairs.filter((p) => isDue(p.srs || newSrs())).length
+    data.naturalPairs.filter((p) => isDue(p.srs || newSrs())).length +
+    (data.basicWords || []).filter((w) => isDue(w.srs)).length +
+    (data.basicVerbs || []).filter((v) => isDue(v.srs)).length
   const last = latestSession(data)
   const days = streak(data)
 

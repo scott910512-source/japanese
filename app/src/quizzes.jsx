@@ -141,6 +141,66 @@ export function buildKanjiItems(kanji) {
   return shuffle(items)
 }
 
+// ---------- 매일 기본기 테스트 ----------
+import { BASIC_WORDS, FORM_LABELS } from './basics.js'
+
+// 기본 단어 테스트: 단어당 1문항 — 뜻 맞히기 또는 (한자어는) 읽기 맞히기
+export function buildBasicWordItems(words) {
+  const meaningPool = BASIC_WORDS.map((w) => w.ko)
+  const readingPool = BASIC_WORDS.map((w) => w.reading)
+  const items = []
+  for (const w of words) {
+    const askReading = HAS_KANJI.test(w.jp) && Math.random() < 0.5
+    if (askReading) {
+      items.push({
+        key: `bw:${w.jp}:r`,
+        ref: w.jp,
+        tag: '기본 단어',
+        q: `「${w.jp}」의 읽기는?`,
+        sub: null,
+        options: buildOptions(w.reading, readingPool),
+        answer: w.reading,
+      })
+    } else {
+      items.push({
+        key: `bw:${w.jp}:m`,
+        ref: w.jp,
+        tag: '기본 단어',
+        q: `「${w.jp}${w.jp !== w.reading ? `（${w.reading}）` : ''}」의 뜻은?`,
+        sub: null,
+        options: buildOptions(w.ko, meaningPool),
+        answer: w.ko,
+      })
+    }
+  }
+  return shuffle(items)
+}
+
+// 기본 문법 테스트: 동사당 2문항 — 요구한 활용형 고르기.
+// 보기는 같은 동사의 다른 활용형이라 형태를 정확히 알아야 맞힐 수 있다.
+export function buildBasicGrammarItems(verbs) {
+  const items = []
+  for (const v of verbs) {
+    const formKeys = shuffle(Object.keys(v.forms)).slice(0, 2)
+    for (const fk of formKeys) {
+      const answerForm = v.forms[fk]
+      const options = shuffle(
+        Object.values(v.forms).map((x) => display(x.f, x.r === x.f ? null : x.r)),
+      )
+      items.push({
+        key: `bv:${v.base}:${fk}`,
+        ref: v.base,
+        tag: '기본 문법',
+        q: `「${v.base}${v.base !== v.reading ? `（${v.reading}）` : ''}」의 ${FORM_LABELS[fk]}은?`,
+        sub: `${v.ko}`,
+        options,
+        answer: display(answerForm.f, answerForm.r === answerForm.f ? null : answerForm.r),
+      })
+    }
+  }
+  return shuffle(items)
+}
+
 // 자연스러움 퀴즈: 교과서 표현 vs 실제 회화 표현
 export function buildNaturalItems(pairs) {
   return shuffle(

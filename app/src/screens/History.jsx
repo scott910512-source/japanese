@@ -7,6 +7,8 @@ const MODE_LABELS = {
   grammar: '✏️ 문법 빈칸',
   kanji: '🈶 한자 퀴즈',
   natural: '🎯 자연스러움',
+  bword: '📚 기본 단어',
+  bgrammar: '📘 기본 문법',
 }
 
 export default function History({ data }) {
