@@ -1,5 +1,12 @@
 import { wrongRate } from '../srs.js'
 
+const MODE_LABELS = {
+  flashcard: '🃏 플래시카드',
+  grammar: '✏️ 문법 빈칸',
+  kanji: '🈶 한자 퀴즈',
+  natural: '🎯 자연스러움',
+}
+
 export default function History({ data }) {
   const weak = data.words
     .filter((w) => w.srs.wrong > 0 && wrongRate(w.srs) >= 0.4)
@@ -44,7 +51,7 @@ export default function History({ data }) {
         [...data.reviewLog].reverse().map((r, i) => (
           <div className="card log-card" key={i}>
             <span>{r.date}</span>
-            <span>🃏 {r.mode}</span>
+            <span>{MODE_LABELS[r.mode] || r.mode}</span>
             <span>{r.correct}/{r.total} ({r.total ? Math.round((r.correct / r.total) * 100) : 0}%)</span>
           </div>
         ))

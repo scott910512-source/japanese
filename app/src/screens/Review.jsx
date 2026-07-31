@@ -1,28 +1,111 @@
 import { useState } from 'react'
-import { applyAnswer, isDue, today } from '../srs.js'
+import { applyAnswer, isDue, newSrs, today } from '../srs.js'
+import {
+  MCQuiz,
+  QuizResult,
+  buildGrammarItems,
+  buildKanjiItems,
+  buildNaturalItems,
+} from '../quizzes.jsx'
 
-// MVP: 단어 플래시카드(SRS). 나머지 모드는 Phase 2 자리 표시.
 export default function Review({ data, setData, go }) {
   const [mode, setMode] = useState(null)
 
-  if (!mode) {
-    const due = data.words.filter((w) => isDue(w.srs)).length
+  const exit = () => {
+    setMode(null)
+    go('home')
+  }
+
+  if (mode === 'flash') return <Flashcards data={data} setData={setData} done={exit} />
+  if (mode) {
     return (
-      <div className="screen">
-        <h1 className="page-title">🔁 복습</h1>
-        <p className="desc">모드를 선택하세요.</p>
-        <button className="mode-btn" onClick={() => setMode('flash')} disabled={due === 0}>
-          🃏 단어 플래시카드 <span className="badge">{due}장</span>
-        </button>
-        <button className="mode-btn" disabled>✏️ 문법 빈칸 채우기 <span className="badge soon">Phase 2</span></button>
-        <button className="mode-btn" disabled>🈶 한자 퀴즈 <span className="badge soon">Phase 2</span></button>
-        <button className="mode-btn" disabled>🗣️ 회화 롤플레이 <span className="badge soon">Phase 3</span></button>
-        <button className="mode-btn" disabled>🎯 자연스러움 퀴즈 <span className="badge soon">Phase 2</span></button>
-      </div>
+      <QuizSession
+        mode={mode}
+        data={data}
+        setData={setData}
+        done={exit}
+        back={() => setMode(null)}
+      />
     )
   }
 
-  return <Flashcards data={data} setData={setData} done={() => { setMode(null); go('home') }} />
+  const due = data.words.filter((w) => isDue(w.srs)).length
+  const grammarCount = buildGrammarItems(data.grammar).length
+  const kanjiCount = buildKanjiItems(data.kanji).length
+  const naturalCount = buildNaturalItems(data.naturalPairs).length
+
+  return (
+    <div className="screen">
+      <h1 className="page-title">🔁 복습</h1>
+      <p className="desc">모드를 선택하세요.</p>
+      <button className="mode-btn" onClick={() => setMode('flash')} disabled={due === 0}>
+        🃏 단어 플래시카드 <span className="badge">{due}장</span>
+      </button>
+      <button className="mode-btn" onClick={() => setMode('grammar')} disabled={grammarCount === 0}>
+        ✏️ 문법 빈칸 채우기 <span className="badge">{grammarCount}문항</span>
+      </button>
+      <button className="mode-btn" onClick={() => setMode('kanji')} disabled={kanjiCount === 0}>
+        🈶 한자 퀴즈 <span className="badge">{kanjiCount}문항</span>
+      </button>
+      <button className="mode-btn" onClick={() => setMode('natural')} disabled={naturalCount === 0}>
+        🎯 자연스러움 퀴즈 <span className="badge">{naturalCount}문항</span>
+      </button>
+      <button className="mode-btn" disabled>
+        🗣️ 회화 롤플레이 <span className="badge soon">Phase 3</span>
+      </button>
+    </div>
+  )
+}
+
+const QUIZ_DEFS = {
+  grammar: { title: '✏️ 문법 빈칸', build: (d) => buildGrammarItems(d.grammar) },
+  kanji: { title: '🈶 한자 퀴즈', build: (d) => buildKanjiItems(d.kanji) },
+  natural: { title: '🎯 자연스러움', build: (d) => buildNaturalItems(d.naturalPairs) },
+}
+
+function QuizSession({ mode, data, setData, done, back }) {
+  const def = QUIZ_DEFS[mode]
+  const [items] = useState(() => def.build(data))
+  const [results, setResults] = useState(null)
+
+  if (items.length === 0) {
+    back()
+    return null
+  }
+
+  if (results) {
+    return (
+      <QuizResult
+        results={results}
+        onSave={() => {
+          const next = structuredClone(data)
+          const correct = results.filter((r) => r.correct).length
+          next.reviewLog.push({
+            date: today(),
+            mode,
+            total: results.length,
+            correct,
+            weakItems: [...new Set(results.filter((r) => !r.correct).map((r) => r.tag))],
+          })
+          // 문법 퀴즈는 문법 카드 SRS에도 반영 (한 문항이라도 틀리면 오답 처리)
+          if (mode === 'grammar') {
+            const byPattern = {}
+            for (const r of results) {
+              byPattern[r.tag] = (byPattern[r.tag] ?? true) && r.correct
+            }
+            for (const [pattern, ok] of Object.entries(byPattern)) {
+              const g = next.grammar.find((x) => x.pattern === pattern)
+              if (g) g.srs = applyAnswer(g.srs || newSrs(), ok)
+            }
+          }
+          setData(next)
+          done()
+        }}
+      />
+    )
+  }
+
+  return <MCQuiz title={def.title} items={items} onFinish={setResults} />
 }
 
 function Flashcards({ data, setData, done }) {
@@ -39,7 +122,9 @@ function Flashcards({ data, setData, done }) {
         <h1 className="page-title">복습 완료 🎉</h1>
         <div className="card result-card">
           <div className="stat-num">{correct} / {results.length}</div>
-          <div className="stat-label">정답률 {results.length ? Math.round((correct / results.length) * 100) : 0}%</div>
+          <div className="stat-label">
+            정답률 {results.length ? Math.round((correct / results.length) * 100) : 0}%
+          </div>
         </div>
         {wrongItems.length > 0 && (
           <div className="card">
