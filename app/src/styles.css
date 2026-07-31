@@ -190,6 +190,17 @@ body {
 
 .version { text-align: center; color: #55506e; font-size: 11px; padding: 12px 0 4px; }
 
+/* ---------- 데일리 학습 ---------- */
+.study-word { display: flex; justify-content: space-between; align-items: center; }
+.study-jp { font-size: 18px; font-weight: 800; }
+.study-reading { font-size: 13px; font-weight: 600; color: var(--accent2); }
+.study-ko { font-size: 14px; color: var(--muted); font-weight: 700; }
+.study-verb-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.study-forms { width: 100%; border-collapse: collapse; font-size: 14px; }
+.study-forms td { padding: 6px 4px; border-top: 1px solid #2e2a48; }
+.form-label { color: var(--muted); font-size: 12px; width: 40%; }
+.form-value { font-weight: 700; }
+
 /* ---------- 탭바 ---------- */
 .tabbar {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);

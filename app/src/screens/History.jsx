@@ -9,6 +9,7 @@ const MODE_LABELS = {
   natural: '🎯 자연스러움',
   bword: '📚 기본 단어',
   bgrammar: '📘 기본 문법',
+  daily: '📅 데일리 학습',
 }
 
 export default function History({ data }) {
