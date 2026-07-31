@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { parseNote } from '../parser.js'
-import { importParsed } from '../storage.js'
+import { importParsed, save } from '../storage.js'
 import { SAMPLE_NOTE } from '../sampleNote.js'
 
 export default function Import({ data, setData, go }) {
@@ -47,6 +47,36 @@ export default function Import({ data, setData, go }) {
           >
             샘플 노트로 체험하기 (7/31 길 묻기 & 카페)
           </button>
+
+          <h2 className="section-title">백업 복원</h2>
+          <p className="desc">기록 탭에서 내려받은 JSON 백업 파일로 전체 데이터를 복원합니다. 현재 데이터를 덮어씁니다.</p>
+          <label className="btn-secondary file-label">
+            📦 백업 파일(JSON) 불러오기
+            <input
+              type="file"
+              accept="application/json,.json"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                const reader = new FileReader()
+                reader.onload = () => {
+                  try {
+                    const restored = JSON.parse(reader.result)
+                    if (!Array.isArray(restored.words) || !Array.isArray(restored.sessions)) {
+                      throw new Error('invalid')
+                    }
+                    save(restored)
+                    setData(restored)
+                    go('home')
+                  } catch {
+                    alert('백업 파일을 읽을 수 없어요. 니혼고 루프에서 내보낸 JSON인지 확인해 주세요.')
+                  }
+                }
+                reader.readAsText(file)
+              }}
+            />
+          </label>
         </>
       )}
 

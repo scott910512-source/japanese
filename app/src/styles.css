@@ -148,6 +148,31 @@ body {
 .option-btn.right { background: #1e4636; border-color: var(--ok); color: var(--ok); }
 .option-btn.picked-wrong { background: #4a2438; border-color: var(--accent); color: #ff8fb0; }
 
+/* ---------- 이어하기 / 세그먼트 / 파일 ---------- */
+.resume-card { border-color: var(--accent2); }
+.resume-info { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+
+.seg-row { display: flex; gap: 8px; }
+.seg-btn {
+  flex: 1; background: var(--surface); color: var(--muted);
+  border: 1px solid #3a3560; border-radius: 12px;
+  padding: 12px; font-size: 14px; font-weight: 800; cursor: pointer;
+}
+.seg-btn.active { background: var(--surface2); color: var(--text); border-color: var(--accent2); }
+
+.file-label { display: block; text-align: center; }
+
+/* ---------- 푼 문제 다시보기 ---------- */
+.history-details summary { list-style: none; cursor: pointer; }
+.history-details summary::-webkit-details-marker { display: none; }
+.log-card-summary { display: flex; justify-content: space-between; font-size: 13px; }
+.history-items { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.history-item { border-top: 1px solid #2e2a48; padding-top: 8px; font-size: 13px; }
+.history-q { font-weight: 700; }
+.history-a { color: var(--muted); margin-top: 2px; }
+.history-item.no .history-q { color: #ff8fb0; }
+.history-picked { color: var(--accent); }
+
 /* ---------- 기록 ---------- */
 .weak-card { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
 .weak-card .jp { font-size: 17px; font-weight: 800; }
