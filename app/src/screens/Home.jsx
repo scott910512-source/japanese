@@ -1,8 +1,14 @@
-import { isDue } from '../srs.js'
+import { isDue, newSrs } from '../srs.js'
 import { latestSession, streak } from '../storage.js'
 
+export const APP_VERSION = 'v0.4.0'
+
 export default function Home({ data, go }) {
-  const due = data.words.filter((w) => isDue(w.srs)).length
+  const due =
+    data.words.filter((w) => isDue(w.srs)).length +
+    data.grammar.filter((g) => isDue(g.srs || newSrs())).length +
+    data.kanji.filter((k) => isDue(k.srs || newSrs())).length +
+    data.naturalPairs.filter((p) => isDue(p.srs || newSrs())).length
   const last = latestSession(data)
   const days = streak(data)
 
@@ -36,7 +42,7 @@ export default function Home({ data, go }) {
       )}
 
       <button className="btn-primary" onClick={() => go('review')} disabled={due === 0}>
-        {due > 0 ? `복습 시작 (${due}장)` : '오늘 복습 완료! 🎉'}
+        {due > 0 ? `복습 시작 (${due}개 항목)` : '오늘 복습 완료! 🎉'}
       </button>
       {data.sessions.length === 0 && (
         <button className="btn-secondary" onClick={() => go('import')}>
@@ -59,6 +65,7 @@ export default function Home({ data, go }) {
           </div>
         ))
       )}
+      <div className="version">니혼고 루프 {APP_VERSION}</div>
     </div>
   )
 }

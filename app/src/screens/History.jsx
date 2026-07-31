@@ -43,6 +43,15 @@ export default function History({ data }) {
       </div>
 
       <h2 className="section-title">취약 항목</h2>
+      {data.grammar
+        .filter((g) => g.srs && g.srs.wrong > 0 && wrongRate(g.srs) >= 0.4)
+        .map((g) => (
+          <div className="card weak-card" key={g.pattern}>
+            <span className="jp">{g.pattern}</span>
+            <span>{g.meaning}</span>
+            <span className="weak-rate">오답률 {Math.round(wrongRate(g.srs) * 100)}%</span>
+          </div>
+        ))}
       {weak.length === 0 ? (
         <p className="empty">아직 취약 항목이 없어요. 복습을 진행하면 자동으로 표시됩니다.</p>
       ) : (
