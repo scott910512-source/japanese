@@ -11,12 +11,18 @@ const EMPTY = {
   naturalPairs: [],
   reviewSentences: [],
   reviewLog: [],
+  quizHistory: [], // 푼 문제 전체 보관: {date, mode, total, correct, items:[{q, answer, picked, correct}]}
 }
 
 export function load() {
   try {
     const raw = localStorage.getItem(KEY)
-    return raw ? { ...EMPTY, ...JSON.parse(raw) } : { ...EMPTY }
+    const data = raw ? { ...EMPTY, ...JSON.parse(raw) } : { ...EMPTY }
+    // 구버전 데이터 마이그레이션: 문제 상세가 없던 reviewLog를 quizHistory로 승격
+    if (data.quizHistory.length === 0 && data.reviewLog.length > 0) {
+      data.quizHistory = data.reviewLog.map((r) => ({ ...r, items: null }))
+    }
+    return data
   } catch {
     return { ...EMPTY }
   }
@@ -24,6 +30,51 @@ export function load() {
 
 export function save(data) {
   localStorage.setItem(KEY, JSON.stringify(data))
+}
+
+// ---------- 진행 중 퀴즈 자동 저장 (중단 후 이어하기) ----------
+const ACTIVE_KEY = 'nihongo-loop-active-quiz'
+
+export function saveActiveQuiz(state) {
+  localStorage.setItem(ACTIVE_KEY, JSON.stringify(state))
+}
+
+export function loadActiveQuiz() {
+  try {
+    const raw = localStorage.getItem(ACTIVE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+export function clearActiveQuiz() {
+  localStorage.removeItem(ACTIVE_KEY)
+}
+
+// 완료된 퀴즈를 즉시 기록에 반영 (저장 버튼 없이 자동 저장)
+export function commitQuizResult(data, { mode, results }) {
+  const next = structuredClone(data)
+  const correct = results.filter((r) => r.correct).length
+  const entry = {
+    date: today(),
+    mode,
+    total: results.length,
+    correct,
+    weakItems: [...new Set(results.filter((r) => !r.correct).map((r) => r.tag || r.q))],
+  }
+  next.reviewLog.push(entry)
+  next.quizHistory.push({
+    ...entry,
+    items: results.map((r) => ({
+      q: r.q,
+      sub: r.sub || null,
+      answer: r.answer,
+      picked: r.picked ?? null,
+      correct: r.correct,
+    })),
+  })
+  return next
 }
 
 // 파싱된 노트를 병합 저장. 단어는 표기(jp) 기준으로 중복 제거(기존 SRS 유지).

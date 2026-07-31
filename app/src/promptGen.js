@@ -1,5 +1,6 @@
 import { wrongRate } from './srs.js'
 import { latestSession } from './storage.js'
+import { buildMarkdownLog } from './exporter.js'
 
 // 복습 결과를 반영한 "다음 학습 프롬프트" 생성 — 앱의 핵심 아웃풋.
 export function generatePrompt(data) {
@@ -45,6 +46,29 @@ export function generatePrompt(data) {
   lines.push('')
   lines.push('[수업이 끝나면] 오늘 배운 내용을 아래 표준 노트 템플릿 형식 그대로 마크다운으로 정리해줘.')
   lines.push('섹션 제목과 표 형식을 바꾸지 말고, 해당 없는 섹션은 생략해도 돼.')
+  lines.push('모든 한자 표기에는 읽기(히라가나)를 반드시 함께 적어줘.')
+  lines.push('')
+  lines.push(TEMPLATE)
+  return lines.join('\n')
+}
+
+// 학습 로그 기반 "문제 확장 프롬프트" — 배운 내용만으로 새 연습 문제를 만들어
+// 표준 노트 형식으로 받아서 다시 임포트할 수 있게 한다.
+export function generateExpansionPrompt(data) {
+  const lines = []
+  lines.push('너는 일본어 출제 선생님이야. 아래는 내가 지금까지 학습한 전체 로그야.')
+  lines.push('이 로그에 나온 단어·문법·한자만 사용해서 (필요하면 아주 조금만 확장해서) 새로운 연습 문제 세트를 만들어줘.')
+  lines.push('')
+  lines.push('[출제 조건]')
+  lines.push('1. 오답률이 높은 취약 항목을 반드시 여러 번 포함해줘.')
+  lines.push('2. 배운 문법으로 만들 수 있는 새로운 예문·복습 문장을 6개 이상 만들어줘.')
+  lines.push('3. 배운 단어를 조합한 새로운 회화 상황을 1~2개 만들어줘.')
+  lines.push('4. 모든 한자 표기에는 읽기(히라가나)를 함께 적어줘.')
+  lines.push('5. 결과는 아래 표준 노트 템플릿 형식 그대로 마크다운으로 출력해줘. (앱에 다시 임포트할 거야)')
+  lines.push('   날짜는 오늘 날짜, 주제는 "복습 확장 문제"로 해줘.')
+  lines.push('')
+  lines.push('--- 나의 학습 로그 ---')
+  lines.push(buildMarkdownLog(data))
   lines.push('')
   lines.push(TEMPLATE)
   return lines.join('\n')
@@ -60,9 +84,9 @@ const TEMPLATE = `--- 표준 노트 템플릿 ---
 ### 뜻
 > (한국어 뜻)
 ### 형태
-| 기본형 | 조건형 |
-|--------|--------|
-| (동사) | (활용형) |
+| 기본형 | 조건형 | 읽기 |
+|--------|--------|------|
+| (동사)（(동사 히라가나)） | (활용형) | (활용형 히라가나) |
 ### 예문
 (대표 예문)
 

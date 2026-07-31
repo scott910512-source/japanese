@@ -9,6 +9,30 @@ export function shuffle(arr) {
   return a
 }
 
+const HAS_KANJI = /[一-龯]/
+
+// 앱에 저장된 단어·활용표에서 "표기 → 읽기" 맵을 만든다.
+// 한자만 보고 발음을 알 수 없는 문제를 해결하기 위해 문항에 읽기를 병기한다.
+export function buildReadingMap(data) {
+  const map = {}
+  for (const w of data.words) {
+    if (w.reading && w.jp !== w.reading) map[w.jp] = w.reading
+  }
+  for (const g of data.grammar) {
+    for (const c of g.conjugations || []) {
+      if (c.reading) map[c.form] = c.reading
+    }
+  }
+  return map
+}
+
+// 한자가 포함된 표기에 읽기를 병기: 行けば → 行けば（いけば）
+function annotate(text, readingMap) {
+  if (!text || !HAS_KANJI.test(text)) return text
+  const r = readingMap[text]
+  return r ? `${text}（${r}）` : text
+}
+
 // 정답 1개 + 오답 후보 풀에서 중복 없이 최대 3개를 섞어 보기 생성
 function buildOptions(answer, pool) {
   const distractors = shuffle([...new Set(pool.filter((p) => p && p !== answer))]).slice(0, 3)
@@ -17,19 +41,20 @@ function buildOptions(answer, pool) {
 
 // ---------- 문항 생성 ----------
 
-// 문법 빈칸: 활용표의 (기본형 → 활용형)을 문항으로
-export function buildGrammarItems(grammar) {
-  const allForms = grammar.flatMap((g) => g.conjugations.map((c) => c.form))
+// 문법 빈칸: 활용표의 (기본형 → 활용형)을 문항으로. 표기에 읽기 병기.
+export function buildGrammarItems(grammar, readingMap = {}) {
+  const allForms = grammar.flatMap((g) => g.conjugations.map((c) => annotate(c.form, readingMap)))
   const items = []
   for (const g of grammar) {
     for (const c of g.conjugations) {
+      const answer = annotate(c.form, readingMap)
       items.push({
         key: `${g.pattern}:${c.base}`,
         tag: g.pattern,
-        q: `「${c.base}」 → ？`,
+        q: `「${annotate(c.base, readingMap)}」 → ？`,
         sub: `${g.pattern}${g.meaning ? ` — ${g.meaning}` : ''}`,
-        options: buildOptions(c.form, allForms),
-        answer: c.form,
+        options: buildOptions(answer, allForms),
+        answer,
       })
     }
   }
@@ -84,11 +109,13 @@ export function buildNaturalItems(pairs) {
 }
 
 // ---------- 공통 객관식 퀴즈 컴포넌트 ----------
+// initialIdx/initialResults: 중단했던 퀴즈 이어하기용.
+// onProgress: 매 문항 답변 시 호출 — 진행 상황 자동 저장에 사용.
 
-export function MCQuiz({ title, items, onFinish }) {
-  const [idx, setIdx] = useState(0)
-  const [picked, setPicked] = useState(null) // 선택한 보기 (피드백 표시 중)
-  const [results, setResults] = useState([])
+export function MCQuiz({ title, items, onFinish, onProgress, initialIdx = 0, initialResults = [] }) {
+  const [idx, setIdx] = useState(initialIdx)
+  const [picked, setPicked] = useState(null)
+  const [results, setResults] = useState(initialResults)
 
   const item = items[idx]
 
@@ -97,12 +124,16 @@ export function MCQuiz({ title, items, onFinish }) {
     setPicked(opt)
     const correct = opt === item.answer
     setTimeout(() => {
-      const nextResults = [...results, { key: item.key, tag: item.tag, correct }]
+      const nextResults = [
+        ...results,
+        { key: item.key, tag: item.tag, q: item.q, sub: item.sub, answer: item.answer, picked: opt, correct },
+      ]
       setResults(nextResults)
       setPicked(null)
       if (idx + 1 >= items.length) {
         onFinish(nextResults)
       } else {
+        onProgress?.(idx + 1, nextResults)
         setIdx(idx + 1)
       }
     }, 800)
@@ -134,14 +165,15 @@ export function MCQuiz({ title, items, onFinish }) {
   )
 }
 
-// ---------- 결과 화면 ----------
+// ---------- 결과 화면 (결과는 이미 자동 저장된 상태) ----------
 
-export function QuizResult({ results, onSave }) {
+export function QuizResult({ results, onDone }) {
   const correct = results.filter((r) => r.correct).length
   const wrongTags = [...new Set(results.filter((r) => !r.correct).map((r) => r.tag))]
   return (
     <div className="screen">
       <h1 className="page-title">복습 완료 🎉</h1>
+      <p className="desc">결과는 자동 저장됐어요. 기록 탭에서 언제든 다시 볼 수 있습니다.</p>
       <div className="card result-card">
         <div className="stat-num">{correct} / {results.length}</div>
         <div className="stat-label">
@@ -156,7 +188,7 @@ export function QuizResult({ results, onSave }) {
           ))}
         </div>
       )}
-      <button className="btn-primary" onClick={onSave}>결과 저장</button>
+      <button className="btn-primary" onClick={onDone}>홈으로</button>
     </div>
   )
 }

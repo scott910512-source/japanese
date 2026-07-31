@@ -1,7 +1,9 @@
 import { wrongRate } from '../srs.js'
+import { downloadJsonBackup, downloadMarkdownLog } from '../exporter.js'
 
 const MODE_LABELS = {
   flashcard: '🃏 플래시카드',
+  flash: '🃏 플래시카드',
   grammar: '✏️ 문법 빈칸',
   kanji: '🈶 한자 퀴즈',
   natural: '🎯 자연스러움',
@@ -31,6 +33,15 @@ export default function History({ data }) {
         </div>
       </div>
 
+      <div className="answer-row">
+        <button className="btn-secondary" onClick={() => downloadJsonBackup(data)}>
+          📦 데이터 백업 (JSON)
+        </button>
+        <button className="btn-secondary" onClick={() => downloadMarkdownLog(data)}>
+          📝 학습 로그 (MD)
+        </button>
+      </div>
+
       <h2 className="section-title">취약 항목</h2>
       {weak.length === 0 ? (
         <p className="empty">아직 취약 항목이 없어요. 복습을 진행하면 자동으로 표시됩니다.</p>
@@ -44,16 +55,37 @@ export default function History({ data }) {
         ))
       )}
 
-      <h2 className="section-title">복습 이력</h2>
-      {data.reviewLog.length === 0 ? (
+      <h2 className="section-title">푼 문제 다시보기</h2>
+      {data.quizHistory.length === 0 ? (
         <p className="empty">복습 기록이 없습니다.</p>
       ) : (
-        [...data.reviewLog].reverse().map((r, i) => (
-          <div className="card log-card" key={i}>
-            <span>{r.date}</span>
-            <span>{MODE_LABELS[r.mode] || r.mode}</span>
-            <span>{r.correct}/{r.total} ({r.total ? Math.round((r.correct / r.total) * 100) : 0}%)</span>
-          </div>
+        [...data.quizHistory].reverse().map((h, i) => (
+          <details className="card history-details" key={i}>
+            <summary className="log-card-summary">
+              <span>{h.date}</span>
+              <span>{MODE_LABELS[h.mode] || h.mode}</span>
+              <span>
+                {h.correct}/{h.total} ({h.total ? Math.round((h.correct / h.total) * 100) : 0}%)
+              </span>
+            </summary>
+            {h.items ? (
+              <div className="history-items">
+                {h.items.map((item, j) => (
+                  <div className={`history-item ${item.correct ? 'ok' : 'no'}`} key={j}>
+                    <div className="history-q">
+                      {item.correct ? '✅' : '❌'} {item.q}
+                    </div>
+                    <div className="history-a">
+                      정답: <b>{item.answer}</b>
+                      {!item.correct && item.picked && <span className="history-picked"> · 내 답: {item.picked}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="empty">이 기록은 문제 상세가 저장되기 전 버전이라 요약만 남아 있어요.</p>
+            )}
+          </details>
         ))
       )}
 

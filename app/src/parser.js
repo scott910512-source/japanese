@@ -75,7 +75,8 @@ function bullets(fieldLines) {
     .map((l) => stripMd(l.replace(/^\s*-\s+/, '')))
 }
 
-function tableRows(lines, cols) {
+function tableRows(lines, cols, maxCols) {
+  const max = maxCols ?? cols
   const rows = []
   for (const line of lines) {
     if (!line.trim().startsWith('|')) continue
@@ -83,7 +84,7 @@ function tableRows(lines, cols) {
       .split('|')
       .slice(1, -1)
       .map((c) => c.trim())
-    if (cells.length !== cols) continue
+    if (cells.length < cols || cells.length > max) continue
     if (cells.some((c) => /^[-\s:]+$/.test(c))) continue // 구분선
     rows.push(cells)
   }
@@ -115,7 +116,11 @@ export function parseNote(md) {
       grammar.push({
         pattern: sub.title.replace(/^\d+\.\s*/, ''),
         meaning: allText(f['뜻']).join(' / ') || null,
-        conjugations: tableRows(f['형태'] || [], 2).map(([base, form]) => ({ base, form })),
+        conjugations: tableRows(f['형태'] || [], 2, 3).map(([base, form, reading]) => ({
+          base,
+          form,
+          reading: reading || null,
+        })),
         example: firstText(f['예문']),
       })
     }
