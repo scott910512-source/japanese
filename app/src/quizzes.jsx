@@ -308,6 +308,55 @@ export function buildBasicGrammarItems(verbs) {
   return shuffle(items)
 }
 
+// ---------- 노래로 배우기 ----------
+import { SONGS } from './songs.js'
+
+export function buildSongQuizItems(song) {
+  const meaningPool = [
+    ...SONGS.flatMap((s) => s.words.map((w) => w.ko)),
+    ...BASIC_WORDS.map((w) => w.ko),
+  ]
+  const readingPool = [
+    ...SONGS.flatMap((s) => s.words.map((w) => w.reading)),
+    ...BASIC_WORDS.map((w) => w.reading),
+  ]
+  const grammarPool = SONGS.flatMap((s) => s.grammar.map((g) => g.meaning))
+  const exprPool = [...SONGS.flatMap((s) => s.expressions.map((e) => e.ko)), ...meaningPool]
+
+  const items = []
+  for (const w of song.words) {
+    items.push({ ...wordMeaningItem(w, meaningPool, 'sw'), tag: `🎵 ${song.titleKo}` })
+    if (HAS_KANJI.test(w.jp)) {
+      items.push({ ...wordReadingItem(w, readingPool, 'sw'), tag: `🎵 ${song.titleKo}` })
+    }
+  }
+  for (const g of song.grammar) {
+    items.push({
+      key: `sg:${song.id}:${g.pattern}`,
+      ref: g.pattern,
+      rt: null,
+      tag: `🎵 ${song.titleKo}`,
+      q: `「${g.pattern}」의 의미는?`,
+      sub: `예: ${g.example}`,
+      options: buildOptions(g.meaning, grammarPool),
+      answer: g.meaning,
+    })
+  }
+  for (const e of song.expressions) {
+    items.push({
+      key: `se:${song.id}:${e.jp}`,
+      ref: e.jp,
+      rt: null,
+      tag: `🎵 ${song.titleKo}`,
+      q: `「${e.jp}${e.reading !== e.jp ? `（${e.reading}）` : ''}」의 뜻은?`,
+      sub: null,
+      options: buildOptions(e.ko, exprPool),
+      answer: e.ko,
+    })
+  }
+  return shuffle(items)
+}
+
 // 자연스러움 퀴즈: 교과서 표현 vs 실제 회화 표현
 export function buildNaturalItems(pairs) {
   return shuffle(

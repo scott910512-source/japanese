@@ -190,6 +190,11 @@ body {
 
 .version { text-align: center; color: #55506e; font-size: 11px; padding: 12px 0 4px; }
 
+/* ---------- 노래로 배우기 ---------- */
+.song-title { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
+.song-meta { font-size: 11px; color: var(--muted); font-weight: 600; }
+.badge.done { background: #1e4636; color: var(--ok); }
+
 /* ---------- 데일리 학습 ---------- */
 .study-word { display: flex; justify-content: space-between; align-items: center; }
 .study-jp { font-size: 18px; font-weight: 800; }

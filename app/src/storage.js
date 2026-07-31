@@ -16,6 +16,7 @@ const EMPTY = {
   basicWords: [], // 내장 은행에서 배정된 기본 단어 (+srs)
   basicVerbs: [], // 내장 은행에서 배정된 기본 동사 활용 (+srs)
   basicsPtr: null, // {date, w, v} — 은행에서 어디까지 배정했는지
+  songsDone: [], // 완료한 노래 학습 id 목록
 }
 
 // 하루에 한 번, 내장 은행에서 새 기본 단어·동사를 배정한다.

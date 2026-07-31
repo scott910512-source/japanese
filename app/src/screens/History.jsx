@@ -10,6 +10,7 @@ const MODE_LABELS = {
   bword: '📚 기본 단어',
   bgrammar: '📘 기본 문법',
   daily: '📅 데일리 학습',
+  song: '🎵 노래로 배우기',
 }
 
 export default function History({ data }) {
