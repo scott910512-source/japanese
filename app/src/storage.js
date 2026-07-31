@@ -22,6 +22,10 @@ export function load() {
     if (data.quizHistory.length === 0 && data.reviewLog.length > 0) {
       data.quizHistory = data.reviewLog.map((r) => ({ ...r, items: null }))
     }
+    // 구버전 데이터에 SRS가 없는 항목 보충 (문법·한자·자연스러움도 간격 반복 대상)
+    for (const g of data.grammar) if (!g.srs) g.srs = newSrs()
+    for (const k of data.kanji) if (!k.srs) k.srs = newSrs()
+    for (const p of data.naturalPairs) if (!p.srs) p.srs = newSrs()
     return data
   } catch {
     return { ...EMPTY }
@@ -94,18 +98,33 @@ export function importParsed(data, parsed) {
     }
   }
 
-  const knownG = new Set(next.grammar.map((g) => g.pattern))
+  // 문법·한자는 이미 있으면 내용만 갱신(읽기 열 추가 등 반영)하고 SRS는 유지
   for (const g of parsed.grammar) {
-    if (!knownG.has(g.pattern)) next.grammar.push({ ...g, sessionId: sid, srs: newSrs() })
+    const existing = next.grammar.find((x) => x.pattern === g.pattern)
+    if (existing) {
+      Object.assign(existing, g, { srs: existing.srs || newSrs() })
+    } else {
+      next.grammar.push({ ...g, sessionId: sid, srs: newSrs() })
+    }
   }
 
-  const knownK = new Set(next.kanji.map((k) => k.char))
   for (const k of parsed.kanji) {
-    if (!knownK.has(k.char)) next.kanji.push({ ...k, sessionId: sid })
+    const existing = next.kanji.find((x) => x.char === k.char)
+    if (existing) {
+      Object.assign(existing, k, { srs: existing.srs || newSrs() })
+    } else {
+      next.kanji.push({ ...k, sessionId: sid, srs: newSrs() })
+    }
   }
 
+  // 같은 세션을 다시 임포트하면 회화는 교체 (중복 누적 방지)
+  next.dialogues = next.dialogues.filter((d) => d.sessionId !== sid)
   for (const d of parsed.dialogues) next.dialogues.push({ ...d, sessionId: sid })
-  for (const p of parsed.naturalPairs) next.naturalPairs.push({ ...p, sessionId: sid })
+  for (const p of parsed.naturalPairs) {
+    if (!next.naturalPairs.some((x) => x.natural === p.natural)) {
+      next.naturalPairs.push({ ...p, sessionId: sid, srs: newSrs() })
+    }
+  }
   for (const s of parsed.reviewSentences) {
     if (!next.reviewSentences.some((r) => r.text === s)) {
       next.reviewSentences.push({ text: s, sessionId: sid })

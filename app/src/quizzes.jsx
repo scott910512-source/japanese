@@ -39,21 +39,66 @@ function buildOptions(answer, pool) {
   return shuffle([answer, ...distractors])
 }
 
+// ---------- 같은 동사의 "그럴듯한 틀린 활용형" 생성 ----------
+// 다른 동사를 보기로 내면 한자만 보고 맞힐 수 있으므로,
+// 정답 활용형의 어미를 변형해 같은 동사의 가짜 활용형을 만든다.
+// 見れば → 見らば・見りば・見れる・見ければ ...
+const E_ROW_VARIANTS = {
+  け: 'かきくこ', せ: 'さしすそ', て: 'たちつと', ね: 'なにぬの', へ: 'はひふほ',
+  め: 'まみむも', れ: 'らりるろ', え: 'あいうお', げ: 'がぎぐご', ぜ: 'ざじずぞ',
+  で: 'だぢづど', べ: 'ばびぶぼ', ぺ: 'ぱぴぷぽ',
+}
+
+function mutateBaForm(text) {
+  const out = []
+  if (!text || text.length < 2 || !text.endsWith('ば')) return out
+  const k = text[text.length - 2]
+  const stem = text.slice(0, -2)
+  const row = E_ROW_VARIANTS[k]
+  if (row) {
+    for (const c of row) out.push(stem + c + 'ば') // 見らば, 見りば, 見るば, 見ろば
+  }
+  out.push(stem + k + 'る') // 見れる (가능형처럼 보이는 오답)
+  if (k !== 'け') out.push(stem + 'け' + k + 'ば') // 見ければ
+  return out
+}
+
+// 활용형과 읽기가 같은 어미를 공유하므로, 같은 변형을 읽기에도 적용해 짝을 만든다.
+function fakeFormPairs(form, reading) {
+  const forms = mutateBaForm(form)
+  const readings = reading ? mutateBaForm(reading) : []
+  return forms.map((f, i) => ({ form: f, reading: readings[i] || null }))
+}
+
+function display(form, reading) {
+  return reading && HAS_KANJI.test(form) ? `${form}（${reading}）` : form
+}
+
 // ---------- 문항 생성 ----------
 
-// 문법 빈칸: 활용표의 (기본형 → 활용형)을 문항으로. 표기에 읽기 병기.
+// 문법 빈칸: 활용표의 (기본형 → 활용형)을 문항으로.
+// 보기는 같은 동사의 가짜 활용형으로 구성하고 읽기를 병기한다.
 export function buildGrammarItems(grammar, readingMap = {}) {
   const allForms = grammar.flatMap((g) => g.conjugations.map((c) => annotate(c.form, readingMap)))
   const items = []
   for (const g of grammar) {
     for (const c of g.conjugations) {
-      const answer = annotate(c.form, readingMap)
+      const reading = readingMap[c.form] || null
+      const answer = display(c.form, reading) === c.form ? annotate(c.form, readingMap) : display(c.form, reading)
+      const fakes = shuffle(fakeFormPairs(c.form, reading))
+        .slice(0, 3)
+        .map((p) => display(p.form, p.reading))
+      const options =
+        fakes.length >= 2
+          ? shuffle([answer, ...fakes])
+          : buildOptions(answer, allForms) // ば형이 아닌 문법은 기존 방식 폴백
       items.push({
         key: `${g.pattern}:${c.base}`,
+        ref: g.pattern,
         tag: g.pattern,
         q: `「${annotate(c.base, readingMap)}」 → ？`,
         sub: `${g.pattern}${g.meaning ? ` — ${g.meaning}` : ''}`,
-        options: buildOptions(answer, allForms),
+        options,
         answer,
       })
     }
@@ -73,6 +118,7 @@ export function buildKanjiItems(kanji) {
     if (k.onyomi) {
       items.push({
         key: `${k.char}:on`,
+        ref: k.char,
         tag: k.char,
         q: `「${k.char}」의 음독은?`,
         sub: k.mnemonic || null,
@@ -83,6 +129,7 @@ export function buildKanjiItems(kanji) {
     if (k.koreanSound) {
       items.push({
         key: `${k.char}:ko`,
+        ref: k.char,
         tag: k.char,
         q: `「${k.char}」의 한국 한자음은?`,
         sub: k.koreanHanja ? `한국 한자: ${k.koreanHanja}` : null,
@@ -99,6 +146,7 @@ export function buildNaturalItems(pairs) {
   return shuffle(
     pairs.map((p, i) => ({
       key: `nat:${i}`,
+      ref: p.natural,
       tag: '실전 표현',
       q: '일본인이 실제 회화에서 더 많이 쓰는 표현은?',
       sub: null,
@@ -126,7 +174,7 @@ export function MCQuiz({ title, items, onFinish, onProgress, initialIdx = 0, ini
     setTimeout(() => {
       const nextResults = [
         ...results,
-        { key: item.key, tag: item.tag, q: item.q, sub: item.sub, answer: item.answer, picked: opt, correct },
+        { key: item.key, ref: item.ref, tag: item.tag, q: item.q, sub: item.sub, answer: item.answer, picked: opt, correct },
       ]
       setResults(nextResults)
       setPicked(null)

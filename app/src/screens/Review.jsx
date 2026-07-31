@@ -32,17 +32,18 @@ export default function Review({ data, setData, go }) {
     go('home')
   }
 
-  const start = (mode) => {
+  // 풀고 나면 SRS가 다음 복습일을 잡으므로, 오늘 몫(due)만 출제한다.
+  const dueOf = (mode) => {
     const readingMap = buildReadingMap(data)
-    const items =
-      mode === 'flash'
-        ? data.words.filter((w) => isDue(w.srs)).map((w) => w.jp)
-        : mode === 'grammar'
-          ? buildGrammarItems(data.grammar, readingMap)
-          : mode === 'kanji'
-            ? buildKanjiItems(data.kanji)
-            : buildNaturalItems(data.naturalPairs)
-    const state = { mode, items, idx: 0, results: [] }
+    if (mode === 'flash') return data.words.filter((w) => isDue(w.srs)).map((w) => w.jp)
+    if (mode === 'grammar')
+      return buildGrammarItems(data.grammar.filter((g) => isDue(g.srs || newSrs())), readingMap)
+    if (mode === 'kanji') return buildKanjiItems(data.kanji.filter((k) => isDue(k.srs || newSrs())))
+    return buildNaturalItems(data.naturalPairs.filter((p) => isDue(p.srs || newSrs())))
+  }
+
+  const start = (mode) => {
+    const state = { mode, items: dueOf(mode), idx: 0, results: [] }
     saveActiveQuiz(state)
     setPending(null)
     setSession(state)
@@ -60,15 +61,21 @@ export default function Review({ data, setData, go }) {
     return <QuizSession data={data} setData={setData} initial={session} done={exit} />
   }
 
-  const due = data.words.filter((w) => isDue(w.srs)).length
-  const readingMap = buildReadingMap(data)
-  const grammarCount = buildGrammarItems(data.grammar, readingMap).length
-  const kanjiCount = buildKanjiItems(data.kanji).length
-  const naturalCount = buildNaturalItems(data.naturalPairs).length
+  const due = dueOf('flash').length
+  const grammarCount = dueOf('grammar').length
+  const kanjiCount = dueOf('kanji').length
+  const naturalCount = dueOf('natural').length
+  const allDone = due + grammarCount + kanjiCount + naturalCount === 0
 
   return (
     <div className="screen">
       <h1 className="page-title">🔁 복습</h1>
+      {allDone && data.words.length > 0 && (
+        <div className="card">
+          <div className="card-title">오늘 복습 완료 🎉</div>
+          <p className="desc">틀렸던 항목은 내일, 맞힌 항목은 간격을 늘려 다시 나옵니다.</p>
+        </div>
+      )}
 
       {pending && pending.results && pending.idx < pending.items.length && (
         <div className="card resume-card">
@@ -119,16 +126,23 @@ function QuizSession({ data, setData, initial, done }) {
   }
 
   const finish = (finalResults) => {
-    let next = commitQuizResult(data, { mode: initial.mode, results: finalResults })
-    // 문법 퀴즈는 문법 카드 SRS에도 반영 (한 문항이라도 틀리면 오답 처리)
-    if (initial.mode === 'grammar') {
-      const byPattern = {}
-      for (const r of finalResults) {
-        byPattern[r.tag] = (byPattern[r.tag] ?? true) && r.correct
-      }
-      for (const [pattern, ok] of Object.entries(byPattern)) {
-        const g = next.grammar.find((x) => x.pattern === pattern)
-        if (g) g.srs = applyAnswer(g.srs || newSrs(), ok)
+    const next = commitQuizResult(data, { mode: initial.mode, results: finalResults })
+    // 항목별 SRS 반영: 같은 항목(ref)의 문항이 하나라도 틀리면 오답 처리
+    const byRef = {}
+    for (const r of finalResults) {
+      if (!r.ref) continue
+      byRef[r.ref] = (byRef[r.ref] ?? true) && r.correct
+    }
+    const targets = {
+      grammar: (ref) => next.grammar.find((x) => x.pattern === ref),
+      kanji: (ref) => next.kanji.find((x) => x.char === ref),
+      natural: (ref) => next.naturalPairs.find((x) => x.natural === ref),
+    }
+    const findTarget = targets[initial.mode]
+    if (findTarget) {
+      for (const [ref, ok] of Object.entries(byRef)) {
+        const t = findTarget(ref)
+        if (t) t.srs = applyAnswer(t.srs || newSrs(), ok)
       }
     }
     setData(next)
