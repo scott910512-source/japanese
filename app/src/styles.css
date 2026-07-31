@@ -194,6 +194,18 @@ body {
 .song-title { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
 .song-meta { font-size: 11px; color: var(--muted); font-weight: 600; }
 .badge.done { background: #1e4636; color: var(--ok); }
+.link-btn { flex: 1; text-align: center; text-decoration: none; display: block; font-size: 13px; }
+.lyrics-input { min-height: 140px; margin-bottom: 10px; }
+.lyrics-box {
+  white-space: pre-wrap; word-break: break-all;
+  font-family: inherit; font-size: 15px; line-height: 2;
+  margin: 10px 0; color: var(--text);
+}
+.lyric-hit {
+  background: rgba(124, 108, 255, 0.25);
+  color: var(--accent2); font-weight: 800;
+  border-radius: 4px; padding: 0 3px;
+}
 
 /* ---------- 데일리 학습 ---------- */
 .study-word { display: flex; justify-content: space-between; align-items: center; }

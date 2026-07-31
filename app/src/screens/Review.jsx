@@ -198,6 +198,25 @@ import { FORM_LABELS } from '../basics.js'
 import { SONGS } from '../songs.js'
 import { buildSongQuizItems } from '../quizzes.jsx'
 
+// 가사 안에서 이 곡의 학습 단어를 하이라이트해서 렌더링
+function HighlightedLyrics({ text, words }) {
+  const targets = words.map((w) => w.jp).filter(Boolean)
+  if (targets.length === 0) return <pre className="lyrics-box">{text}</pre>
+  const escaped = targets.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const parts = text.split(new RegExp(`(${escaped.join('|')})`, 'g'))
+  return (
+    <pre className="lyrics-box">
+      {parts.map((p, i) =>
+        targets.includes(p) ? (
+          <mark className="lyric-hit" key={i}>{p}</mark>
+        ) : (
+          <span key={i}>{p}</span>
+        ),
+      )}
+    </pre>
+  )
+}
+
 // 노래로 배우기: ① 곡 소개·단어·문법·표현 학습 → ② 테스트(오답 반복)
 function SongSession({ data, setData, initial, done }) {
   const song = SONGS.find((s) => s.id === initial.songId)
@@ -208,6 +227,8 @@ function SongSession({ data, setData, initial, done }) {
       : null,
   )
   const [finalResults, setFinalResults] = useState(null)
+  const [lyricsDraft, setLyricsDraft] = useState('')
+  const [editingLyrics, setEditingLyrics] = useState(false)
 
   if (!song) {
     done()
@@ -216,6 +237,17 @@ function SongSession({ data, setData, initial, done }) {
   if (finalResults) return <QuizResult results={finalResults} onDone={done} />
 
   if (phase === 'study') {
+    const savedLyrics = (data.songLyrics || {})[song.id]
+    const saveLyrics = (text) => {
+      const next = structuredClone(data)
+      next.songLyrics = { ...(next.songLyrics || {}) }
+      if (text) next.songLyrics[song.id] = text
+      else delete next.songLyrics[song.id]
+      setData(next)
+      setEditingLyrics(false)
+      setLyricsDraft('')
+    }
+    const searchUrl = (q) => `https://www.google.com/search?q=${encodeURIComponent(q)}`
     const startQuiz = () => {
       const items = buildSongQuizItems(song)
       saveActiveQuiz({ mode: 'song', songId: song.id, items, idx: 0, results: [], total: items.length })
@@ -231,7 +263,67 @@ function SongSession({ data, setData, initial, done }) {
             <span className="study-ko">{song.artist}</span>
           </div>
           <p className="desc">{song.intro}</p>
+          <div className="answer-row">
+            <a
+              className="btn-secondary link-btn"
+              href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${song.title} ${song.artist}`)}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              🎬 뮤직비디오
+            </a>
+            <a
+              className="btn-secondary link-btn"
+              href={searchUrl(`${song.title} ${song.artist} 歌詞`)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              📝 공식 가사 찾기
+            </a>
+          </div>
         </div>
+
+        <h2 className="section-title">가사로 공부하기</h2>
+        {savedLyrics && !editingLyrics ? (
+          <div className="card">
+            <p className="desc">배운 단어가 가사에서 하이라이트됩니다. (내 기기에만 저장됨)</p>
+            <HighlightedLyrics text={savedLyrics} words={[...song.words, ...song.expressions]} />
+            <div className="answer-row">
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  setLyricsDraft(savedLyrics)
+                  setEditingLyrics(true)
+                }}
+              >
+                수정
+              </button>
+              <button className="btn-secondary" onClick={() => saveLyrics('')}>
+                삭제
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="card">
+            <p className="desc">
+              공식 가사를 직접 붙여넣으면 배운 단어가 하이라이트됩니다. 가사는 서버에 올라가지 않고
+              <b> 이 기기에만</b> 저장돼요.
+            </p>
+            <textarea
+              className="paste-area lyrics-input"
+              placeholder="여기에 가사를 붙여넣기…"
+              value={lyricsDraft}
+              onChange={(e) => setLyricsDraft(e.target.value)}
+            />
+            <button
+              className="btn-secondary"
+              onClick={() => saveLyrics(lyricsDraft.trim())}
+              disabled={!lyricsDraft.trim()}
+            >
+              가사 저장 (기기 전용)
+            </button>
+          </div>
+        )}
 
         <h2 className="section-title">이 곡의 핵심 단어 ({song.words.length})</h2>
         {song.words.map((w) => (
