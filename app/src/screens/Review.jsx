@@ -28,7 +28,11 @@ const MODE_LABELS = {
   bword: '📚 기본 단어',
   bgrammar: '📘 기본 문법',
   daily: '📅 데일리 학습',
+  song: '🎵 노래로 배우기',
 }
+
+// 오답 반복(RepeatQuiz) 기반 모드 — 저장 상태의 items가 "남은 문제"를 뜻한다
+const REPEAT_MODES = ['daily', 'song']
 
 export default function Review({ data, setData, go }) {
   const [session, setSession] = useState(null) // {mode, items, idx, results}
@@ -52,6 +56,11 @@ export default function Review({ data, setData, go }) {
     if (mode === 'bgrammar')
       return buildBasicGrammarItems((data.basicVerbs || []).filter((v) => isDue(v.srs)))
     return buildNaturalItems(data.naturalPairs.filter((p) => isDue(p.srs || newSrs())))
+  }
+
+  const startSong = (songId) => {
+    setPending(null)
+    setSession({ mode: 'song', songId })
   }
 
   const start = (mode) => {
@@ -78,6 +87,9 @@ export default function Review({ data, setData, go }) {
   if (session?.mode === 'daily') {
     return <DailySession data={data} setData={setData} initial={session} done={exit} />
   }
+  if (session?.mode === 'song') {
+    return <SongSession data={data} setData={setData} initial={session} done={exit} />
+  }
   if (session) {
     return <QuizSession data={data} setData={setData} initial={session} done={exit} />
   }
@@ -101,12 +113,12 @@ export default function Review({ data, setData, go }) {
         </div>
       )}
 
-      {pending && pending.results && pending.items.length > (pending.mode === 'daily' ? 0 : pending.idx) && (
+      {pending && pending.results && pending.items.length > (REPEAT_MODES.includes(pending.mode) ? 0 : pending.idx) && (
         <div className="card resume-card">
           <div className="card-title">진행 중이던 복습이 있어요</div>
           <div className="resume-info">
             {MODE_LABELS[pending.mode] || pending.mode} ·{' '}
-            {pending.mode === 'daily'
+            {REPEAT_MODES.includes(pending.mode)
               ? `남은 ${pending.items.length}문제`
               : `${pending.idx} / ${pending.items.length} 완료`}
           </div>
@@ -162,11 +174,140 @@ export default function Review({ data, setData, go }) {
       <button className="mode-btn" onClick={() => start('bgrammar')} disabled={bgrammarCount === 0}>
         📘 기본 문법 테스트 <span className="badge">{bgrammarCount}문항</span>
       </button>
+
+      <h2 className="section-title">🎵 노래로 배우기</h2>
+      <p className="desc">
+        인기 J-POP의 핵심 단어·문법·표현을 곡별로 학습합니다. 완료한 곡의 단어는 데일리 학습에도
+        추가돼요. (저작권 보호를 위해 가사 전문 대신 핵심 어휘로 구성)
+      </p>
+      {SONGS.map((s) => (
+        <button className="mode-btn" key={s.id} onClick={() => startSong(s.id)}>
+          <span className="song-title">
+            {s.title} <span className="song-meta">{s.titleKo} · {s.artist}</span>
+          </span>
+          <span className={`badge ${(data.songsDone || []).includes(s.id) ? 'done' : ''}`}>
+            {(data.songsDone || []).includes(s.id) ? '완료 ✓' : '학습하기'}
+          </span>
+        </button>
+      ))}
     </div>
   )
 }
 
 import { FORM_LABELS } from '../basics.js'
+import { SONGS } from '../songs.js'
+import { buildSongQuizItems } from '../quizzes.jsx'
+
+// 노래로 배우기: ① 곡 소개·단어·문법·표현 학습 → ② 테스트(오답 반복)
+function SongSession({ data, setData, initial, done }) {
+  const song = SONGS.find((s) => s.id === initial.songId)
+  const [phase, setPhase] = useState(initial.items ? 'quiz' : 'study')
+  const [quizState, setQuizState] = useState(
+    initial.items
+      ? { queue: initial.items, results: initial.results || [], total: initial.total || initial.items.length }
+      : null,
+  )
+  const [finalResults, setFinalResults] = useState(null)
+
+  if (!song) {
+    done()
+    return null
+  }
+  if (finalResults) return <QuizResult results={finalResults} onDone={done} />
+
+  if (phase === 'study') {
+    const startQuiz = () => {
+      const items = buildSongQuizItems(song)
+      saveActiveQuiz({ mode: 'song', songId: song.id, items, idx: 0, results: [], total: items.length })
+      setQuizState({ queue: items, results: [], total: items.length })
+      setPhase('quiz')
+    }
+    return (
+      <div className="screen">
+        <h1 className="page-title">🎵 {song.title}</h1>
+        <div className="card">
+          <div className="study-verb-head">
+            <span className="study-jp">{song.titleKo}</span>
+            <span className="study-ko">{song.artist}</span>
+          </div>
+          <p className="desc">{song.intro}</p>
+        </div>
+
+        <h2 className="section-title">이 곡의 핵심 단어 ({song.words.length})</h2>
+        {song.words.map((w) => (
+          <div className="card study-word" key={w.jp}>
+            <span className="study-jp">
+              {w.jp}
+              {w.reading !== w.jp ? <span className="study-reading">（{w.reading}）</span> : null}
+            </span>
+            <span className="study-ko">{w.ko}</span>
+          </div>
+        ))}
+
+        <h2 className="section-title">이 곡의 문법 ({song.grammar.length})</h2>
+        {song.grammar.map((g) => (
+          <div className="card" key={g.pattern}>
+            <div className="study-verb-head">
+              <span className="study-jp">{g.pattern}</span>
+              <span className="study-ko">{g.meaning}</span>
+            </div>
+            <p className="desc">
+              {g.example}
+              <br />
+              {g.exampleKo}
+            </p>
+          </div>
+        ))}
+
+        <h2 className="section-title">이 곡의 표현 ({song.expressions.length})</h2>
+        {song.expressions.map((e) => (
+          <div className="card study-word" key={e.jp}>
+            <span className="study-jp">
+              {e.jp}
+              {e.reading !== e.jp ? <span className="study-reading">（{e.reading}）</span> : null}
+            </span>
+            <span className="study-ko">{e.ko}</span>
+          </div>
+        ))}
+
+        <button className="btn-primary" onClick={startQuiz}>
+          테스트 시작
+        </button>
+        <button className="btn-secondary" onClick={done}>
+          나가기
+        </button>
+      </div>
+    )
+  }
+
+  const finish = (results) => {
+    const next = commitQuizResult(data, { mode: 'song', results })
+    // 곡 단어를 기본 단어 풀에 추가 → 데일리 학습에서 계속 반복
+    const known = new Set(next.basicWords.map((w) => w.jp))
+    for (const w of song.words) {
+      if (!known.has(w.jp)) next.basicWords.push({ ...w, srs: newSrs(), from: `song:${song.id}` })
+    }
+    if (!(next.songsDone || []).includes(song.id)) {
+      next.songsDone = [...(next.songsDone || []), song.id]
+    }
+    setData(next)
+    clearActiveQuiz()
+    setFinalResults(results)
+  }
+
+  return (
+    <RepeatQuiz
+      title={`🎵 ${song.titleKo}`}
+      initialQueue={quizState.queue}
+      initialResults={quizState.results}
+      total={quizState.total}
+      onProgress={(q, r) =>
+        saveActiveQuiz({ mode: 'song', songId: song.id, items: q, idx: r.length, results: r, total: quizState.total })
+      }
+      onFinish={finish}
+    />
+  )
+}
 
 // 데일리 학습: ① 오늘의 단어·문법 학습(설명) → ② 최소 20문항 테스트(오답 반복)
 function DailySession({ data, setData, initial, done }) {
