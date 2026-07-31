@@ -9,6 +9,8 @@ import {
 import {
   MCQuiz,
   QuizResult,
+  buildBasicGrammarItems,
+  buildBasicWordItems,
   buildGrammarItems,
   buildKanjiItems,
   buildNaturalItems,
@@ -20,6 +22,8 @@ const MODE_LABELS = {
   grammar: '✏️ 문법 빈칸',
   kanji: '🈶 한자 퀴즈',
   natural: '🎯 자연스러움',
+  bword: '📚 기본 단어',
+  bgrammar: '📘 기본 문법',
 }
 
 export default function Review({ data, setData, go }) {
@@ -39,6 +43,10 @@ export default function Review({ data, setData, go }) {
     if (mode === 'grammar')
       return buildGrammarItems(data.grammar.filter((g) => isDue(g.srs || newSrs())), readingMap)
     if (mode === 'kanji') return buildKanjiItems(data.kanji.filter((k) => isDue(k.srs || newSrs())))
+    if (mode === 'bword')
+      return buildBasicWordItems((data.basicWords || []).filter((w) => isDue(w.srs)))
+    if (mode === 'bgrammar')
+      return buildBasicGrammarItems((data.basicVerbs || []).filter((v) => isDue(v.srs)))
     return buildNaturalItems(data.naturalPairs.filter((p) => isDue(p.srs || newSrs())))
   }
 
@@ -65,12 +73,15 @@ export default function Review({ data, setData, go }) {
   const grammarCount = dueOf('grammar').length
   const kanjiCount = dueOf('kanji').length
   const naturalCount = dueOf('natural').length
-  const allDone = due + grammarCount + kanjiCount + naturalCount === 0
+  const bwordCount = dueOf('bword').length
+  const bgrammarCount = dueOf('bgrammar').length
+  const allDone =
+    due + grammarCount + kanjiCount + naturalCount + bwordCount + bgrammarCount === 0
 
   return (
     <div className="screen">
       <h1 className="page-title">🔁 복습</h1>
-      {allDone && data.words.length > 0 && (
+      {allDone && (data.words.length > 0 || (data.basicWords || []).length > 0) && (
         <div className="card">
           <div className="card-title">오늘 복습 완료 🎉</div>
           <p className="desc">틀렸던 항목은 내일, 맞힌 항목은 간격을 늘려 다시 나옵니다.</p>
@@ -114,6 +125,18 @@ export default function Review({ data, setData, go }) {
       <button className="mode-btn" disabled>
         🗣️ 회화 롤플레이 <span className="badge soon">Phase 3</span>
       </button>
+
+      <h2 className="section-title">매일 기본기 테스트</h2>
+      <p className="desc">
+        노트와 별개로 매일 새 기본 단어 5개·동사 활용 2개가 자동 배정됩니다. 틀리면 다음날 다시
+        나와요.
+      </p>
+      <button className="mode-btn" onClick={() => start('bword')} disabled={bwordCount === 0}>
+        📚 기본 단어 테스트 <span className="badge">{bwordCount}문항</span>
+      </button>
+      <button className="mode-btn" onClick={() => start('bgrammar')} disabled={bgrammarCount === 0}>
+        📘 기본 문법 테스트 <span className="badge">{bgrammarCount}문항</span>
+      </button>
     </div>
   )
 }
@@ -137,6 +160,8 @@ function QuizSession({ data, setData, initial, done }) {
       grammar: (ref) => next.grammar.find((x) => x.pattern === ref),
       kanji: (ref) => next.kanji.find((x) => x.char === ref),
       natural: (ref) => next.naturalPairs.find((x) => x.natural === ref),
+      bword: (ref) => next.basicWords.find((x) => x.jp === ref),
+      bgrammar: (ref) => next.basicVerbs.find((x) => x.base === ref),
     }
     const findTarget = targets[initial.mode]
     if (findTarget) {

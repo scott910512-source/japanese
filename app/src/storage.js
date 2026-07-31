@@ -1,4 +1,5 @@
 import { newSrs, today } from './srs.js'
+import { BASIC_WORDS, BASIC_VERBS, NEW_WORDS_PER_DAY, NEW_VERBS_PER_DAY } from './basics.js'
 
 const KEY = 'nihongo-loop-v1'
 
@@ -12,6 +13,40 @@ const EMPTY = {
   reviewSentences: [],
   reviewLog: [],
   quizHistory: [], // 푼 문제 전체 보관: {date, mode, total, correct, items:[{q, answer, picked, correct}]}
+  basicWords: [], // 내장 은행에서 배정된 기본 단어 (+srs)
+  basicVerbs: [], // 내장 은행에서 배정된 기본 동사 활용 (+srs)
+  basicsPtr: null, // {date, w, v} — 은행에서 어디까지 배정했는지
+}
+
+// 하루에 한 번, 내장 은행에서 새 기본 단어·동사를 배정한다.
+export function ensureDailyBasics(data) {
+  const t = today()
+  if (data.basicsPtr?.date === t) return data
+  const next = structuredClone(data)
+  const ptr = { date: t, w: next.basicsPtr?.w ?? 0, v: next.basicsPtr?.v ?? 0 }
+
+  const knownW = new Set(next.basicWords.map((w) => w.jp))
+  let addedW = 0
+  while (addedW < NEW_WORDS_PER_DAY && ptr.w < BASIC_WORDS.length) {
+    const w = BASIC_WORDS[ptr.w++]
+    if (!knownW.has(w.jp)) {
+      next.basicWords.push({ ...w, srs: newSrs() })
+      addedW++
+    }
+  }
+
+  const knownV = new Set(next.basicVerbs.map((v) => v.base))
+  let addedV = 0
+  while (addedV < NEW_VERBS_PER_DAY && ptr.v < BASIC_VERBS.length) {
+    const v = BASIC_VERBS[ptr.v++]
+    if (!knownV.has(v.base)) {
+      next.basicVerbs.push({ ...v, srs: newSrs() })
+      addedV++
+    }
+  }
+
+  next.basicsPtr = ptr
+  return next
 }
 
 export function load() {

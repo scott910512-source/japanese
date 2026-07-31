@@ -4,7 +4,7 @@ import Import from './screens/Import.jsx'
 import Review from './screens/Review.jsx'
 import History from './screens/History.jsx'
 import Prompt from './screens/Prompt.jsx'
-import { load, save } from './storage.js'
+import { ensureDailyBasics, load, save } from './storage.js'
 
 const TABS = [
   { id: 'home', icon: '🏠', label: '홈' },
@@ -16,7 +16,12 @@ const TABS = [
 
 export default function App() {
   const [tab, setTab] = useState('home')
-  const [data, setDataRaw] = useState(load)
+  const [data, setDataRaw] = useState(() => {
+    // 앱을 열 때마다 오늘 몫의 기본 단어·동사를 은행에서 배정
+    const d = ensureDailyBasics(load())
+    save(d)
+    return d
+  })
 
   const setData = (next) => {
     save(next)
