@@ -1,0 +1,85 @@
+import { newSrs, today } from './srs.js'
+
+const KEY = 'nihongo-loop-v1'
+
+const EMPTY = {
+  sessions: [],
+  words: [],
+  grammar: [],
+  kanji: [],
+  dialogues: [],
+  naturalPairs: [],
+  reviewSentences: [],
+  reviewLog: [],
+}
+
+export function load() {
+  try {
+    const raw = localStorage.getItem(KEY)
+    return raw ? { ...EMPTY, ...JSON.parse(raw) } : { ...EMPTY }
+  } catch {
+    return { ...EMPTY }
+  }
+}
+
+export function save(data) {
+  localStorage.setItem(KEY, JSON.stringify(data))
+}
+
+// 파싱된 노트를 병합 저장. 단어는 표기(jp) 기준으로 중복 제거(기존 SRS 유지).
+export function importParsed(data, parsed) {
+  const next = structuredClone(data)
+  const sid = parsed.session.id
+
+  next.sessions = next.sessions.filter((s) => s.id !== sid)
+  next.sessions.push({ ...parsed.session, importedAt: today() })
+  next.sessions.sort((a, b) => (a.id < b.id ? 1 : -1))
+
+  const known = new Set(next.words.map((w) => w.jp))
+  for (const w of parsed.words) {
+    if (!known.has(w.jp)) {
+      next.words.push({ ...w, sessionId: sid, srs: newSrs() })
+      known.add(w.jp)
+    }
+  }
+
+  const knownG = new Set(next.grammar.map((g) => g.pattern))
+  for (const g of parsed.grammar) {
+    if (!knownG.has(g.pattern)) next.grammar.push({ ...g, sessionId: sid, srs: newSrs() })
+  }
+
+  const knownK = new Set(next.kanji.map((k) => k.char))
+  for (const k of parsed.kanji) {
+    if (!knownK.has(k.char)) next.kanji.push({ ...k, sessionId: sid })
+  }
+
+  for (const d of parsed.dialogues) next.dialogues.push({ ...d, sessionId: sid })
+  for (const p of parsed.naturalPairs) next.naturalPairs.push({ ...p, sessionId: sid })
+  for (const s of parsed.reviewSentences) {
+    if (!next.reviewSentences.some((r) => r.text === s)) {
+      next.reviewSentences.push({ text: s, sessionId: sid })
+    }
+  }
+  return next
+}
+
+export function latestSession(data) {
+  return data.sessions[0] || null
+}
+
+// 연속 학습일: reviewLog + 임포트 날짜 기준
+export function streak(data) {
+  const days = new Set([
+    ...data.reviewLog.map((r) => r.date),
+    ...data.sessions.map((s) => s.importedAt),
+  ])
+  let count = 0
+  const d = new Date()
+  // 오늘 활동이 없으면 어제부터 계산
+  if (!days.has(d.toISOString().slice(0, 10))) d.setDate(d.getDate() - 1)
+  while (days.has(d.toISOString().slice(0, 10))) {
+    count += 1
+    d.setDate(d.getDate() - 1)
+  }
+  return count
+}
